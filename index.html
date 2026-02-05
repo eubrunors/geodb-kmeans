@@ -2,66 +2,56 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>GeoDB Cities – Parte 1</title>
+  <title>GeoExplorer</title>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-    }
+  <!-- Fonte moderna -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 
-    .container {
-      display: flex;
-      gap: 40px;
-    }
-
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-
-    li {
-      margin-bottom: 8px;
-    }
-
-    button {
-      margin-left: 8px;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-
-    .loading {
-      color: #555;
-      font-style: italic;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <h1>Exploração de Cidades (Parte 1)</h1>
+  <header class="header">
+    <h1>GeoExplorer</h1>
+    <p class="subtitle">
+      Explore e selecione cidades do mundo para análise
+    </p>
+  </header>
 
-  <div class="container">
-
-    <div>
+  <main class="container">
+    <!-- COLUNA ESQUERDA -->
+    <section class="card">
       <h2>Cidades da API</h2>
-      <p id="loading" class="loading"></p>
 
-      <ul id="cities-list"></ul>
+      <div class="status">
+        <p id="loading" class="loading"></p>
+        <p id="error" class="error"></p>
+      </div>
 
-      <button id="prev">Página anterior</button>
-      <button id="next">Próxima página</button>
-    </div>
+      <!-- 🔥 wrapper APENAS da lista -->
+      <div class="scroll-wrapper">
+        <ul id="cities-list" class="city-list"></ul>
+        <div class="scroll-fade"></div>
+      </div>
 
-    <div>
-      <h2>Cidades Selecionadas</h2>
-      <ul id="selected-list"></ul>
-    </div>
+      <div class="pagination">
+        <button id="prev">Página anterior</button>
+        <button id="next" class="primary">Próxima página</button>
+      </div>
+    </section>
 
-  </div>
+
+    <!-- COLUNA DIREITA -->
+    <section class="card">
+      <h2>
+        Cidades Selecionadas
+        <span id="selected-count" class="count-badge">0</span>
+      </h2>
+      <ul id="selected-list" class="selected-list"></ul>
+    </section>
+  </main>
 
   <script src="main.js"></script>
 </body>
