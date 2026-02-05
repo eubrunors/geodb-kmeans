@@ -7,14 +7,21 @@ const initialState = {
   selectedCities: [],
   offset: 0,
   limit: 10,
-  loading: false
+  loading: false,
+  error: null
 };
 
 let state = initialState;
 
 // =======================
-// FUNÇÕES PURAS (FUNCIONAL)
+// FUNÇÕES PURAS (REDUCERS)
 // =======================
+
+const startLoading = state => ({
+  ...state,
+  loading: true,
+  error: null
+});
 
 const setCitiesFromApi = (state, cities) => ({
   ...state,
@@ -22,29 +29,20 @@ const setCitiesFromApi = (state, cities) => ({
   loading: false
 });
 
-const startLoading = state => ({
+const setError = (state, error) => ({
   ...state,
-  loading: true
+  loading: false,
+  error
 });
 
-const addSelectedCity = (state, city) => {
-  const exists = state.selectedCities.some(c => c.id === city.id);
-  if (exists) return state;
+const addSelectedCity = (state, city) =>
+  state.selectedCities.some(c => c.id === city.id)
+    ? state
+    : { ...state, selectedCities: [...state.selectedCities, city] };
 
-  return {
-    ...state,
-    selectedCities: [...state.selectedCities, city]
-  };
-};
-
-const nextPage = state => ({
+const removeSelectedCity = (state, cityId) => ({
   ...state,
-  offset: state.offset + state.limit
-});
-
-const prevPage = state => ({
-  ...state,
-  offset: Math.max(0, state.offset - state.limit)
+  selectedCities: state.selectedCities.filter(city => city.id !== cityId)
 });
 
 // =======================
@@ -52,45 +50,63 @@ const prevPage = state => ({
 // =======================
 
 const fetchCities = async (offset, limit) => {
-  const res = await fetch(
-    `https://wft-geo-db.p.rapidapi.com/v1/geo/cities?limit=${limit}&offset=${offset}`,
-    {
-      headers: {
-        "X-RapidAPI-Key": "5a3eaa3d97msh3e909ad35ec33b7p1bfa29jsn98b253aa1fa0   ",
-        "X-RapidAPI-Host": "wft-geo-db.p.rapidapi.com"
+  try {
+    const res = await fetch(
+      `https://wft-geo-db.p.rapidapi.com/v1/geo/cities?limit=${limit}&offset=${offset}`,
+      {
+        headers: {
+          "X-RapidAPI-Key": "5a3eaa3d97msh3e909ad35ec33b7p1bfa29jsn98b253aa1fa0",
+          "X-RapidAPI-Host": "wft-geo-db.p.rapidapi.com"
+        }
       }
-    }
-  );
+    );
 
-  const json = await res.json();
-  return json.data;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json = await res.json();
+    return json.data;
+  } catch (err) {
+    return { error: err.message };
+  }
 };
 
 // =======================
-// RENDERIZAÇÃO
+// RENDERIZAÇÃO (PROJEÇÃO)
 // =======================
+
+const renderStatus = () => {
+  document.getElementById("loading").textContent =
+    state.loading ? "Carregando cidades..." : "";
+
+  document.getElementById("error").textContent =
+    state.error ? "Erro ao carregar dados da API." : "";
+};
 
 const renderCities = () => {
   const list = document.getElementById("cities-list");
-  const loadingText = document.getElementById("loading");
-
   list.innerHTML = "";
-  loadingText.textContent = state.loading ? "Carregando cidades..." : "";
 
   state.citiesFromApi.forEach(city => {
     const li = document.createElement("li");
-    li.textContent = city.name;
+
+    const span = document.createElement("span");
+    span.textContent = `${city.name} — ${city.country}`;
 
     const btn = document.createElement("button");
     btn.textContent = "Selecionar";
-    btn.disabled = state.selectedCities.some(c => c.id === city.id);
+
+    const alreadySelected = state.selectedCities.some(
+      selected => selected.id === city.id
+    );
+
+    btn.disabled = alreadySelected;
 
     btn.onclick = () => {
       state = addSelectedCity(state, city);
-      renderSelected();
-      renderCities();
+      render();
     };
 
+    li.appendChild(span);
     li.appendChild(btn);
     list.appendChild(li);
   });
@@ -102,9 +118,38 @@ const renderSelected = () => {
 
   state.selectedCities.forEach(city => {
     const li = document.createElement("li");
-    li.textContent = city.name;
+
+    const span = document.createElement("span");
+    span.textContent = city.name;
+
+    const btn = document.createElement("button");
+    btn.textContent = "Remover";
+
+    btn.onclick = () => {
+      state = removeSelectedCity(state, city.id);
+      render();
+    };
+
+    li.appendChild(span);
+    li.appendChild(btn);
     list.appendChild(li);
   });
+};
+
+const renderSelectedCount = () => {
+  document.getElementById("selected-count").textContent =
+    state.selectedCities.length;
+};
+
+const render = () => {
+  renderStatus();
+  renderCities();
+  renderSelected();
+  renderSelectedCount();
+
+  document.getElementById("next").disabled = state.loading;
+  document.getElementById("prev").disabled =
+    state.loading || state.offset === 0;
 };
 
 // =======================
@@ -113,27 +158,62 @@ const renderSelected = () => {
 
 const loadCities = async () => {
   state = startLoading(state);
-  renderCities();
+  render();
 
-  const cities = await fetchCities(state.offset, state.limit);
-  state = setCitiesFromApi(state, cities);
+  const result = await fetchCities(state.offset, state.limit);
 
-  renderCities();
+  state = result.error
+    ? setError(state, result.error)
+    : setCitiesFromApi(state, result);
+
+  render();
+};
+
+const loadCitiesWithOffset = async (newOffset) => {
+  state = startLoading(state);
+  render();
+
+  const result = await fetchCities(newOffset, state.limit);
+
+  if (result?.error) {
+    state = setError(state, result.error);
+    render();
+    return; // ❌ offset NÃO muda
+  }
+
+  state = {
+    ...state,
+    citiesFromApi: result,
+    offset: newOffset,
+    loading: false,
+    error: null
+  };
+
+  render();
 };
 
 // =======================
 // EVENTOS
 // =======================
 
-document.getElementById("next").onclick = async () => {
-  state = nextPage(state);
-  await loadCities();
+document.getElementById("next").onclick = () => {
+  loadCitiesWithOffset(state.offset + state.limit);
 };
 
-document.getElementById("prev").onclick = async () => {
-  state = prevPage(state);
-  await loadCities();
+document.getElementById("prev").onclick = () => {
+  loadCitiesWithOffset(Math.max(0, state.offset - state.limit));
 };
+
+const list = document.querySelector('.city-list');
+const fade = document.querySelector('.scroll-fade');
+
+list.addEventListener('scroll', () => {
+  const atBottom =
+    list.scrollTop + list.clientHeight >= list.scrollHeight - 1;
+
+  fade.style.opacity = atBottom ? '0' : '1';
+});
+
 
 // =======================
 // INICIALIZAÇÃO
