@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>GeoDB Cities – Parte 1</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    .container {
+      display: flex;
+      gap: 40px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    button {
+      margin-left: 8px;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .loading {
+      color: #555;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Exploração de Cidades (Parte 1)</h1>
+
+  <div class="container">
+
+    <div>
+      <h2>Cidades da API</h2>
+      <p id="loading" class="loading"></p>
+
+      <ul id="cities-list"></ul>
+
+      <button id="prev">Página anterior</button>
+      <button id="next">Próxima página</button>
+    </div>
+
+    <div>
+      <h2>Cidades Selecionadas</h2>
+      <ul id="selected-list"></ul>
+    </div>
+
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
