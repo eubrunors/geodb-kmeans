@@ -1,0 +1,235 @@
+/* =========================
+   DESIGN TOKENS
+========================= */
+:root {
+  --blue: #2563eb;
+  --bg: #f5f7fa;
+  --card: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --error: #dc2626;
+  --border: #e5e7eb;
+}
+
+/* =========================
+   RESET & BASE
+========================= */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 32px;
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* =========================
+   HEADER
+========================= */
+.header {
+  max-width: 1400px;
+  margin-inline: auto;
+  margin-bottom: 32px;
+  text-align: left;
+  padding-inline: 0; 
+}
+
+
+.header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.subtitle {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+/* Layout */
+.container {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 32px;
+  align-items: start;
+
+  max-width: 1400px;
+  margin-inline: auto;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+
+  width: 100%;
+  height: 460px;              /* 🔥 FIXO */
+  max-width: 800px;           /* 🔥 mantém “quadrado” */
+
+  display: flex;
+  flex-direction: column;
+  position: relative;
+
+}
+
+.card h2 {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+
+}
+
+/* Status */
+.status {
+  min-height: 24px;
+  margin-bottom: 8px;
+}
+
+.loading {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.error {
+  color: var(--error);
+  font-weight: 500;
+}
+
+.city-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  height: 100%;
+  overflow-y: auto;
+  padding-bottom: 8px; /* espaço pro fade */
+}
+
+.scroll-wrapper {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.scroll-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40px;
+
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0),
+    rgba(255,255,255,1)
+  );
+
+  pointer-events: none;
+}
+
+
+.selected-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  overflow-y: auto;           /* 🔥 scroll interno */
+  flex: 1;    
+}
+
+.city-list::-webkit-scrollbar,
+.selected-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.city-list::-webkit-scrollbar-thumb,
+.selected-list::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+
+.selected-list li:hover {
+  background: #fef2f2;
+}
+
+.selected-list button {
+  background: #fee2e2;
+  color: #991b1b;
+  border: none;
+}
+
+.selected-list button:hover {
+  background: #fecaca;
+}
+
+/* Cards de cidade */
+.city-list li,
+.selected-list li {
+  background: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 8px;          /* remove arredondamento interno */
+  padding: 12px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  transition: background 0.2s;
+}
+
+
+
+.city-list li:hover {
+  background: #eef2ff;
+}
+
+/* Botões */
+button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button.primary {
+  background: var(--blue);
+  color: white;
+  border: none;
+}
+
+button:disabled {
+  background: #e5e7eb;
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* Paginação */
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  flex-shrink: 0;
+}
+
+.count-badge {
+  background: #1a6ef435;
+  color: #1a6ef4;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+
