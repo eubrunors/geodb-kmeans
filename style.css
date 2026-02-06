@@ -3,7 +3,7 @@
 ========================= */
 :root {
   --blue: #2563eb;
-  --bg: #f5f7fa;
+  --bg: #f1f1f1;
   --card: #ffffff;
   --text: #111827;
   --muted: #6b7280;
@@ -34,7 +34,7 @@ body {
   margin-inline: auto;
   margin-bottom: 32px;
   text-align: left;
-  padding-inline: 0; 
+  padding-inline: 0;
 }
 
 
@@ -52,29 +52,31 @@ body {
 /* Layout */
 .container {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 32px;
-  align-items: start;
 
   max-width: 1400px;
   margin-inline: auto;
 }
 
+
 .card {
   background: #ffffff;
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 
   width: 100%;
-  height: 460px;              /* 🔥 FIXO */
-  max-width: 800px;           /* 🔥 mantém “quadrado” */
+  height: 460px;
+  max-width: 800px;
 
   display: flex;
   flex-direction: column;
-  position: relative;
 
+  /* 🔥 NÃO bloqueia scroll global */
+  overflow: visible;
 }
+
 
 .card h2 {
   font-size: 18px;
@@ -107,7 +109,8 @@ body {
 
   height: 100%;
   overflow-y: auto;
-  padding-bottom: 8px; /* espaço pro fade */
+  padding-bottom: 8px;
+  /* espaço pro fade */
 }
 
 .scroll-wrapper {
@@ -123,11 +126,9 @@ body {
   bottom: 0;
   height: 40px;
 
-  background: linear-gradient(
-    to bottom,
-    rgba(255,255,255,0),
-    rgba(255,255,255,1)
-  );
+  background: linear-gradient(to bottom,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, 1));
 
   pointer-events: none;
 }
@@ -138,8 +139,9 @@ body {
   padding: 0;
   margin: 0;
 
-  overflow-y: auto;           /* 🔥 scroll interno */
-  flex: 1;    
+  overflow-y: auto;
+  /* 🔥 scroll interno */
+  flex: 1;
 }
 
 .city-list::-webkit-scrollbar,
@@ -173,7 +175,8 @@ body {
 .selected-list li {
   background: #f9fafb;
   border-bottom: 1px solid #e5e7eb;
-  border-radius: 8px;          /* remove arredondamento interno */
+  border-radius: 8px;
+  /* remove arredondamento interno */
   padding: 12px;
 
   display: flex;
@@ -233,3 +236,393 @@ button:hover:not(:disabled) {
   margin-left: 8px;
 }
 
+.clusters-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cluster-box {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg,
+      #ffffff,
+      #f9fafb);
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.cluster-box:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.cluster-box strong {
+  font-size: 15px;
+}
+
+.cluster-box span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.cluster-box button {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.clusters-details {
+  margin-top: 12px;
+}
+
+.cluster-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: #ffffff;
+}
+
+.cluster-list li {
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.cluster-list li:nth-child(odd) {
+  background: #f9fafb;
+}
+
+input[type="number"] {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.control-panel {
+  max-width: 420px;   /* 👈 reduz largura */
+  justify-self: start;
+  height: auto;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Formulário */
+.control-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-form label {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.control-form input {
+  width: 120px;
+  height: 38px;
+  padding: 6px 10px;
+}
+
+/* Ações */
+.control-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.control-actions button {
+  height: 40px;
+  font-size: 14px;
+}
+
+/* Destaque correto */
+.control-actions .primary {
+  font-weight: 600;
+}
+
+/* Ação secundária mais sutil */
+.control-actions .secondary {
+  background: #eef2ff;
+  color: #1e3a8a;
+  border: 1px solid #c7d2fe;
+}
+
+.action-bar {
+  max-width: 1400px;
+  margin: 16px auto 0;
+  display: flex;
+  justify-content: flex-start;
+}
+
+button.secondary {
+  background: #e0e7ff;
+  color: #1e3a8a;
+}
+
+h2 {
+  letter-spacing: -0.02em;
+}
+
+/* =========================
+   MODAL
+========================= */
+
+.modal.hidden {
+  display: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+}
+
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.modal-content {
+  position: relative;
+  background: #ffffff;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+
+  margin: auto;
+  margin-top: 5vh;
+
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.modal-city-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.modal-city-list li {
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.modal-city-list li:nth-child(odd) {
+  background: #f9fafb;
+}
+
+#clusters-card {
+  max-width: none;   /* 🔥 remove limite herdado */
+  width: 100%;
+  height: auto;
+  /* cresce conforme conteúdo */
+  max-height: 520px;
+  /* Z = limite máximo */
+  display: flex;
+  flex-direction: column;
+}
+
+/* título nunca encolhe */
+#clusters-card h2 {
+  flex-shrink: 0;
+}
+
+/* 🔥 ÚNICO ponto de scroll */
+.clusters-body {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 220px;
+  /* controla quando o scroll aparece */
+  padding-right: 8px;
+  padding-bottom: 16px;
+  /* respiro final */
+  margin-top: 8px;
+}
+
+/* grid normal */
+.clusters-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+/* =========================
+   K-MEANS INLINE LAYOUT
+========================= */
+
+.kmeans-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  /* quebra em telas menores */
+}
+
+.k-input {
+  display: flex;
+  flex-direction: column;
+}
+
+.k-input label {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.k-input input {
+  width: 120px;
+  height: 40px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+}
+
+/* Botões alinhados com input */
+.kmeans-row button {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kmeans-row .primary {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.city-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.city-info strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.city-info span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Modal segue o mesmo padrão */
+.modal-city-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.empty-selected {
+  flex: 1;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 32px;
+  opacity: 0.6;
+}
+
+.empty-selected p {
+  font-size: 14px;
+  max-width: 220px;
+}
+
+.selected-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.selected-header h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* botão menor e mais sutil */
+button.small {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.modal-text {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* botão destrutivo */
+button.danger {
+  background: #dc2626;
+  color: white;
+  border: none;
+}
+
+button.danger:hover {
+  background: #b91c1c;
+}

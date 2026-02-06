@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8" />
   <title>GeoExplorer</title>
@@ -11,6 +12,7 @@
 
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
   <header class="header">
@@ -21,6 +23,7 @@
   </header>
 
   <main class="container">
+
     <!-- COLUNA ESQUERDA -->
     <section class="card">
       <h2>Cidades da API</h2>
@@ -45,14 +48,97 @@
 
     <!-- COLUNA DIREITA -->
     <section class="card">
-      <h2>
-        Cidades Selecionadas
-        <span id="selected-count" class="count-badge">0</span>
-      </h2>
+      <div class="selected-header">
+        <h2>
+          Cidades Selecionadas
+          <span id="selected-count" class="count-badge">0</span>
+        </h2>
+
+        <button id="clear-selected" class="secondary small" title="Remover todas as cidades selecionadas">
+          Limpar lista
+        </button>
+      </div>
+
       <ul id="selected-list" class="selected-list"></ul>
     </section>
+
+
+    <!-- CARD K-MEANS -->
+    <section class="card control-panel">
+      <h2>Configuração do K-means</h2>
+
+      <div class="kmeans-row">
+        <div class="k-input">
+          <label for="k-input">Clusters (K)</label>
+          <input type="number" id="k-input" min="2" max="50" value="3">
+        </div>
+
+        <button id="run-kmeans" class="primary">
+          Executar K-means
+        </button>
+
+        <button id="load-all" class="secondary">
+          Carregar base completa
+        </button>
+      </div>
+    </section>
+
+    <section class="card" id="clusters-card" style="display:none; margin-top:24px;">
+      <h2>Clusters (K-means)</h2>
+
+      <div class="clusters-body">
+        <div id="clusters-summary" class="clusters-summary"></div>
+      </div>
+    </section>
+
   </main>
+
+  <!-- MODAL CLUSTERS -->
+  <div id="cluster-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Cluster</h3>
+        <button id="close-modal" class="modal-close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <ul id="modal-city-list" class="modal-city-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL CONFIRMAR LIMPEZA -->
+  <div id="clear-modal" class="modal hidden">
+    <div class="modal-overlay"></div>
+
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Limpar cidades selecionadas</h3>
+        <button id="close-clear-modal" class="modal-close">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p class="modal-text">
+          Tem certeza que deseja remover <strong>todas</strong> as cidades selecionadas?
+          <br>
+          Essa ação não poderá ser desfeita.
+        </p>
+
+        <div class="modal-actions">
+          <button id="cancel-clear" class="secondary">
+            Cancelar
+          </button>
+          <button id="confirm-clear" class="primary danger">
+            Remover tudo
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="main.js"></script>
 </body>
+
 </html>
