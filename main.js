@@ -1,8 +1,40 @@
-const DATA_SOURCE = "LOCAL"; // "LOCAL" | "API"
+// =======================
+// CONFIGURAÇÃO GLOBAL
+// =======================
+
+const DATA_SOURCE = "LOCAL";
 const LOCAL_JSON_PATH = "cities_backup.json";
 
 const TOTAL_CITIES_TARGET = 10000;
 let NUM_WORKERS = navigator.hardwareConcurrency || 4;
+
+// =======================
+// ESTADO GLOBAL
+// =======================
+
+const initialState = {
+  citiesFromApi: [],
+  selectedCities: [],
+  offset: 0,
+  limit: 10,
+  loading: false,
+  error: null,
+
+  fullDataset: [],
+  loadingFullDataset: false
+};
+
+let state = initialState;
+
+let shared = {
+  size: 0,
+
+  id: null,        // Int32Array
+  lat: null,       // Float32Array
+  lon: null,       // Float32Array
+  pop: null,       // Float32Array
+  assign: null     // Int32Array (cluster)
+};
 
 async function loadCitiesDataset() {
   return DATA_SOURCE === "LOCAL"
@@ -10,15 +42,54 @@ async function loadCitiesDataset() {
     : loadCitiesFromAPI();
 }
 
-async function loadCitiesFromLocalWorkers() {
-  console.log("🔄 Carregando base local com Web Workers...");
+let lastCentroids = null;
 
+
+// =======================
+// Shared State
+// =======================
+
+function buildSharedDataset(cities) {
+  const n = cities.length;
+  shared.size = n;
+
+  // 4 bytes por elemento (Int32 / Float32)
+  const idBuf = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * n);
+  const latBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * n);
+  const lonBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * n);
+  const popBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * n);
+  const assignBuf = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * n);
+
+  shared.id = new Int32Array(idBuf);
+  shared.lat = new Float32Array(latBuf);
+  shared.lon = new Float32Array(lonBuf);
+  shared.pop = new Float32Array(popBuf);
+  shared.assign = new Int32Array(assignBuf);
+
+  cities.forEach((c, i) => {
+    shared.id[i] = c.id;
+    shared.lat[i] = c.latitude;
+    shared.lon[i] = c.longitude;
+    shared.pop[i] = c.population ?? 0;
+    shared.assign[i] = -1; // ainda sem cluster
+  });
+
+  console.log("🧠 SharedArrayBuffer criado:", {
+    cities: n,
+    buffers: Object.keys(shared)
+  });
+}
+
+// =======================
+// Dataset Service
+// =======================
+
+async function loadCitiesFromLocalWorkers() {
   const res = await fetch(LOCAL_JSON_PATH);
   const fullData = await res.json();
 
   const total = fullData.length;
   const chunkSize = Math.ceil(total / NUM_WORKERS);
-
   const allCities = [];
   let finished = 0;
 
@@ -32,17 +103,11 @@ async function loadCitiesFromLocalWorkers() {
 
       worker.postMessage({ chunk });
 
-      worker.onmessage = (e) => {
-        const { cities } = e.data;
-        allCities.push(...cities);
+      worker.onmessage = e => {
+        allCities.push(...e.data.cities);
         finished++;
-
         worker.terminate();
-        console.log(`📦 Chunks processados: ${finished}/${NUM_WORKERS}`);
-
-        if (finished === NUM_WORKERS) {
-          resolve(allCities);
-        }
+        if (finished === NUM_WORKERS) resolve(allCities);
       };
 
       worker.onerror = reject;
@@ -50,41 +115,43 @@ async function loadCitiesFromLocalWorkers() {
   });
 }
 
+// =======================
+// K-means Core
+// =======================
+
 function buildSharedCentroids(initial, k) {
-  const latBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * k);
-  const lonBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * k);
-  const popBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * k);
+  const lat = new Float32Array(new SharedArrayBuffer(4 * k));
+  const lon = new Float32Array(new SharedArrayBuffer(4 * k));
+  const pop = new Float32Array(new SharedArrayBuffer(4 * k));
 
-  const centroids = {
-    lat: new Float32Array(latBuf),
-    lon: new Float32Array(lonBuf),
-    pop: new Float32Array(popBuf)
-  };
 
-  for (let i = 0; i < k; i++) {
-    centroids.lat[i] = initial[i].lat;
-    centroids.lon[i] = initial[i].lon;
-    centroids.pop[i] = initial[i].pop;
-  }
+  initial.slice(0, k).forEach((c, i) => {
+    lat[i] = c.lat;
+    lon[i] = c.lon;
+    pop[i] = c.pop;
+  });
 
-  return centroids;
+
+  return { lat, lon, pop };
 }
 
 async function kmeansIterationShared(k, centroids) {
-  const workers = [];
-  const promises = [];
-
   const chunkSize = Math.ceil(shared.size / NUM_WORKERS);
-  for (let w = 0; w < NUM_WORKERS; w++) {
-    const start = w * chunkSize;
-    const end = Math.min(start + chunkSize, shared.size);
 
-    const worker = new Worker("kmeansSharedWorker.js");
-    workers.push(worker);
 
-    promises.push(
+  const partials = await Promise.all(
+    Array.from({ length: NUM_WORKERS }, (_, w) =>
       new Promise(resolve => {
-        worker.onmessage = e => resolve(e.data.sums);
+        const worker = new Worker("kmeansSharedWorker.js");
+        const start = w * chunkSize;
+        const end = Math.min(start + chunkSize, shared.size);
+
+
+        worker.onmessage = e => {
+          worker.terminate();
+          resolve(e.data.sums);
+        };
+
 
         worker.postMessage({
           start,
@@ -99,22 +166,16 @@ async function kmeansIterationShared(k, centroids) {
           centPop: centroids.pop
         });
       })
-    );
-  }
+    )
+  );
 
-  const partials = await Promise.all(promises);
-  workers.forEach(w => w.terminate());
 
-  // 🔻 REDUÇÃO (main thread)
-  const totals = Array.from({ length: k }, () => ({
-    lat: 0,
-    lon: 0,
-    pop: 0,
-    count: 0
-  }));
+  const totals = Array.from({ length: k }, () => ({ lat: 0, lon: 0, pop: 0, count: 0 }));
 
-  partials.forEach(workerSum => {
-    workerSum.forEach((s, i) => {
+  partials.forEach(workerSums => {
+    workerSums.forEach((s, i) => {
+      if (!s || s.count === 0) return;
+
       totals[i].lat += s.lat;
       totals[i].lon += s.lon;
       totals[i].pop += s.pop;
@@ -122,7 +183,6 @@ async function kmeansIterationShared(k, centroids) {
     });
   });
 
-  // 🔄 Atualiza centroides
   totals.forEach((t, i) => {
     if (t.count > 0) {
       centroids.lat[i] = t.lat / t.count;
@@ -155,17 +215,62 @@ async function testSharedKMeans() {
   });
 }
 
-function centroidShift(prev, curr, k) {
-  let max = 0;
-  for (let i = 0; i < k; i++) {
-    const dLat = curr.lat[i] - prev.lat[i];
-    const dLon = curr.lon[i] - prev.lon[i];
-    const dPop = curr.pop[i] - prev.pop[i];
-    const d = Math.sqrt(dLat * dLat + dLon * dLon + dPop * dPop);
-    if (d > max) max = d;
+async function ensureDatasetReady() {
+  // já está pronta
+  if (shared.size >= TOTAL_CITIES_TARGET) {
+    console.log("✅ Base já pronta:", shared.size);
+    return;
   }
-  return max;
+
+  console.log("📥 Preparando base completa...");
+
+  // 1️⃣ carrega JSON local
+  const res = await fetch(LOCAL_JSON_PATH);
+  const localCities = await res.json();
+
+  let cities = [...localCities];
+  let offset = cities.length;
+
+  // 2️⃣ completa via API até 10K
+  while (cities.length < TOTAL_CITIES_TARGET) {
+    const data = await fetchCities(offset, 10);
+
+    if (!Array.isArray(data)) {
+      throw new Error("Erro ao buscar cidades da API");
+    }
+
+    cities.push(...data);
+    offset += data.length;
+
+    await new Promise(r => setTimeout(r, 2100));
+
+    console.log(`📦 ${cities.length}/${TOTAL_CITIES_TARGET}`);
+  }
+
+  // 3️⃣ atualiza estado + SharedArrayBuffer
+  state = setFullDataset(state, cities);
+  buildSharedDataset(cities);
+
+  // 4️⃣ feedback visual
+  const status = document.getElementById("dataset-status");
+  if (status) {
+    status.textContent = `Base pronta (${shared.size} cidades)`;
+  }
+
+  console.log("🧠 Base final pronta:", shared.size);
 }
+
+
+
+const centroidShift = (prev, curr) =>
+  prev.lat.reduce((max, _, i) => {
+    const d =
+      (curr.lat[i] - prev.lat[i]) ** 2 +
+      (curr.lon[i] - prev.lon[i]) ** 2 +
+      (curr.pop[i] - prev.pop[i]) ** 2;
+    return Math.max(max, Math.sqrt(d));
+  }, 0
+);
 
 function snapshotCentroids(centroids) {
   return {
@@ -238,66 +343,6 @@ function buildClustersFromAssign() {
   }
 
   return clusters; // Map<clusterId, City[]>
-}
-
-
-// =======================
-// ESTADO INICIAL
-// =======================
-
-const initialState = {
-  citiesFromApi: [],
-  selectedCities: [],
-  offset: 0,
-  limit: 10,
-  loading: false,
-  error: null,
-
-  fullDataset: [],
-  loadingFullDataset: false
-};
-
-let state = initialState;
-
-let shared = {
-  size: 0,
-
-  id: null,        // Int32Array
-  lat: null,       // Float32Array
-  lon: null,       // Float32Array
-  pop: null,       // Float32Array
-  assign: null     // Int32Array (cluster)
-};
-
-function buildSharedDataset(cities) {
-  const n = cities.length;
-  shared.size = n;
-
-  // 4 bytes por elemento (Int32 / Float32)
-  const idBuf = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * n);
-  const latBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * n);
-  const lonBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * n);
-  const popBuf = new SharedArrayBuffer(Float32Array.BYTES_PER_ELEMENT * n);
-  const assignBuf = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * n);
-
-  shared.id = new Int32Array(idBuf);
-  shared.lat = new Float32Array(latBuf);
-  shared.lon = new Float32Array(lonBuf);
-  shared.pop = new Float32Array(popBuf);
-  shared.assign = new Int32Array(assignBuf);
-
-  cities.forEach((c, i) => {
-    shared.id[i] = c.id;
-    shared.lat[i] = c.latitude;
-    shared.lon[i] = c.longitude;
-    shared.pop[i] = c.population ?? 0;
-    shared.assign[i] = -1; // ainda sem cluster
-  });
-
-  console.log("🧠 SharedArrayBuffer criado:", {
-    cities: n,
-    buffers: Object.keys(shared)
-  });
 }
 
 // =======================
@@ -415,10 +460,14 @@ const renderCities = () => {
 
     btn.disabled = alreadySelected;
 
+    const selectCity = (state, city) =>
+      addSelectedCity(state, city);
+
     btn.onclick = () => {
-      state = addSelectedCity(state, city);
+      state = selectCity(state, city);
       render();
     };
+
 
     // 🔹 Montagem final
     li.appendChild(info);
@@ -486,8 +535,14 @@ const render = () => {
   renderSelected();
   renderSelectedCount();
 
+  const page = state.offset / state.limit + 1;
+  const indicator = document.getElementById("page-indicator");
+  if (indicator) {
+    indicator.textContent = `Página ${page}`;
+  }
+
   document.getElementById("clear-selected").disabled =
-  state.selectedCities.length === 0;
+    state.selectedCities.length === 0;
   document.getElementById("next").disabled = state.loading;
   document.getElementById("prev").disabled =
     state.loading || state.offset === 0;
@@ -573,11 +628,15 @@ confirmClearBtn.onclick = () => {
 };
 
 document.getElementById("next").onclick = () => {
-  loadCitiesWithOffset(state.offset + state.limit);
+  setTimeout(() => {
+    loadCitiesWithOffset(state.offset + state.limit);
+  }, 300);
 };
 
 document.getElementById("prev").onclick = () => {
-  loadCitiesWithOffset(Math.max(0, state.offset - state.limit));
+  setTimeout(() => {
+    loadCitiesWithOffset(Math.max(0, state.offset - state.limit));
+  }, 300);
 };
 
 const list = document.querySelector('.city-list');
@@ -590,47 +649,67 @@ list.addEventListener('scroll', () => {
   fade.style.opacity = atBottom ? '0' : '1';
 });
 
-document.getElementById("load-all").onclick = () => {
-  loadFullDatasetParallel();
+document.getElementById("load-all").onclick = async () => {
+  const btn = document.getElementById("load-all");
+  const originalText = btn.textContent;
+
+  btn.disabled = true;
+  btn.textContent = "Preparando base...";
+
+  try {
+    await ensureDatasetReady();
+    btn.textContent = "Base pronta ✓";
+  } catch (err) {
+    console.error(err);
+    alert("Erro ao preparar base");
+    btn.textContent = originalText;
+  } finally {
+    btn.disabled = false;
+  }
 };
+
+function updateLoadAllButton() {
+  const btn = document.getElementById("load-all");
+  if (!btn) return;
+
+  if (shared.size >= TOTAL_CITIES_TARGET) {
+    btn.disabled = true;
+    btn.textContent = "Base completa ✓";
+  } else {
+    btn.disabled = false;
+    btn.textContent = "Carregar base completa";
+  }
+}
 
 document.getElementById("run-kmeans").onclick = async () => {
   const btn = document.getElementById("run-kmeans");
   const originalText = btn.textContent;
 
   const k = parseInt(document.getElementById("k-input").value, 10);
-
-  // 1️⃣ Validações PRIMEIRO
   if (isNaN(k) || k < 2) {
     alert("K deve ser >= 2");
     return;
   }
 
-  if (!shared || !shared.size) {
-    alert("Base completa ainda não foi carregada");
-    return;
-  }
-
-  // 2️⃣ Só entra em loading se passou tudo
   btn.disabled = true;
-  btn.textContent = "Processando...";
+  btn.textContent = "Preparando base...";
 
   try {
-    // 🔹 K controla clusters
-    // 🔹 N workers controlado a partir de K
+    await ensureDatasetReady();
+
+    btn.textContent = "Executando K-means...";
+
     NUM_WORKERS = Math.min(
       k,
       navigator.hardwareConcurrency || k
     );
 
-    console.log(
-      `▶️ Executando K-means | K=${k} | Workers=${NUM_WORKERS}`
-    );
-
-    await runKMeansShared(k, {
+    const result = await runKMeansShared(k, {
       maxIter: 25,
       epsilon: 1e-4
     });
+
+    lastCentroids = result.centroids;
 
     showClustersUI();
 
@@ -638,11 +717,11 @@ document.getElementById("run-kmeans").onclick = async () => {
     console.error(err);
     alert("Erro ao executar o K-means");
   } finally {
-    // 3️⃣ GARANTIA ABSOLUTA de retorno ao normal
     btn.disabled = false;
     btn.textContent = originalText;
   }
 };
+
 
 function openClusterModal(clusterId, cities) {
   modalTitle.textContent = `Cluster ${clusterId} (${cities.length} cidades)`;
@@ -825,6 +904,12 @@ const loadFullDatasetParallel = async () => {
 };
 
 function renderClustersSummary(clusters) {
+
+  if (!lastCentroids) {
+    console.warn("Centroides ainda não calculados");
+    return;
+  }
+
   const container = document.getElementById("clusters-summary");
   container.innerHTML = "";
 
@@ -838,12 +923,31 @@ function renderClustersSummary(clusters) {
     const count = document.createElement("span");
     count.textContent = `${cities.length} cidades`;
 
+    // 🔥 CENTROIDE
+    const centroidRaw = {
+      lat: lastCentroids.lat[cid],
+      lon: lastCentroids.lon[cid],
+      pop: lastCentroids.pop[cid]
+    };
+
+    const centroid = denormalizeCentroid(centroidRaw);
+
+    const centroidInfo = document.createElement("div");
+    centroidInfo.className = "centroid-info";
+    centroidInfo.innerHTML = `
+    📍 <strong>Centroide</strong><br>
+    Lat: ${centroid.latitude.toFixed(2)}<br>
+    Lon: ${centroid.longitude.toFixed(2)}<br>
+    👥 ${formatPopulation(centroid.population)}
+  `;
+
     const btn = document.createElement("button");
     btn.textContent = "Ver cidades";
     btn.onclick = () => openClusterModal(cid, cities);
 
     box.appendChild(title);
     box.appendChild(count);
+    box.appendChild(centroidInfo);
     box.appendChild(btn);
 
     container.appendChild(box);
@@ -866,9 +970,45 @@ const formatPopulation = (pop) => {
   return pop.toString();
 };
 
+async function ensureFullDatasetLoaded() {
+  // já carregado
+  if (shared && shared.size >= TOTAL_CITIES_TARGET) {
+    return;
+  }
+
+  console.log("📥 Base não carregada. Carregando automaticamente...");
+
+  // carrega do JSON local (já existe)
+  const cities = await loadCitiesDataset();
+
+  state = setFullDataset(state, cities);
+  buildSharedDataset(cities);
+  updateLoadAllButton();
+
+  console.log("✅ Base carregada automaticamente:", shared.size);
+}
+
+function denormalizeCentroid(c) {
+  const lats = state.fullDataset.map(x => x.latitude);
+  const lons = state.fullDataset.map(x => x.longitude);
+  const pops = state.fullDataset.map(x => x.population || 0);
+
+  const minMax = arr => [Math.min(...arr), Math.max(...arr)];
+
+  const [latMin, latMax] = minMax(lats);
+  const [lonMin, lonMax] = minMax(lons);
+  const [popMin, popMax] = minMax(pops);
+
+  return {
+    latitude: c.lat * (latMax - latMin) + latMin,
+    longitude: c.lon * (lonMax - lonMin) + lonMin,
+    population: Math.round(c.pop * (popMax - popMin) + popMin)
+  };
+}
 
 // =======================
 // INICIALIZAÇÃO
 // =======================
 
 loadCities();
+updateLoadAllButton();
